@@ -63,7 +63,7 @@
   }
   .topbar-left { display: flex; align-items: center; gap: 16px; }
   .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
-  .logo span { color: var(--green); }
+  .logo span { color: var(--text); }
   .divider { width: 1px; height: 20px; background: var(--border-strong); }
 
   .month-nav { display: flex; align-items: center; gap: 10px; }
@@ -165,6 +165,19 @@
     display: flex; align-items: center; justify-content: center;
   }
   .theme-text { font-size: 9px; font-weight: 600; color: var(--green-text); text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.3; }
+  .theme-input {
+    width: 100%; min-height: 38px;
+    border: none; background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px; font-weight: 600;
+    color: var(--green-text);
+    text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.3;
+    text-align: center;
+    resize: none; outline: none;
+    padding: 8px 4px;
+    display: block;
+  }
+  .theme-input::placeholder { color: rgba(12,92,66,0.35); font-weight: 400; }
 
   /* Platform rows */
   .platform-label {
@@ -291,17 +304,19 @@
 const DAYS = ['Mo','Tu','We','Th','Fr','Sat','Sun'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-const THEMES = ['Sunday Content','Promo Events','Spiritual','TBD','','Sunday Push','Sunday Push & Recap'];
+const DEFAULT_THEMES = ['Sunday Content','Promo Events','Spiritual','TBD','','Sunday Push','Sunday Push & Recap'];
+
+function themeKey(year, month, wi, di) { return `nl-theme-${year}-${month}-w${wi}-d${di}`; }
+function loadTheme(year, month, wi, di) {
+  try { const v = localStorage.getItem(themeKey(year,month,wi,di)); return v !== null ? v : DEFAULT_THEMES[di]; } catch(e){ return DEFAULT_THEMES[di]; }
+}
+function saveTheme(year, month, wi, di, val) { try { localStorage.setItem(themeKey(year,month,wi,di), val); showSaved(); } catch(e){} }
 
 const PLATFORMS = [
   { key:'ig',    label:'IG',          badge:'badge-ig',    section:true  },
   { key:'fb',    label:'FB',          badge:'badge-fb',    section:false },
   { key:'story', label:'IG/FB Story', badge:'badge-story', section:false },
-  { key:'email', label:'Email',       badge:'badge-email', section:true  },
-  { key:'app',   label:'App',         badge:'badge-app',   section:false },
-  { key:'text',  label:'Text',        badge:'badge-text',  section:false },
   { key:'yt',    label:'YT',          badge:'badge-yt',    section:true  },
-  { key:'pod',   label:'Podcast',     badge:'badge-pod',   section:false },
 ];
 
 const today = new Date();
@@ -315,13 +330,20 @@ function isToday(d) {
 function getWeeks(year, month) {
   const weeks = [];
   const first = new Date(year, month, 1);
-  let dow = first.getDay(); dow = dow===0?6:dow-1;
-  let d = new Date(year, month, 1-dow);
-  while(true) {
+  let dow = first.getDay();
+  dow = dow === 0 ? 6 : dow - 1;
+  let startDate = new Date(year, month, 1 - dow);
+  while (true) {
     const week = [];
-    for(let i=0;i<7;i++){ week.push(new Date(d)); d.setDate(d.getDate()+1); }
-    if(week.some(x=>x.getMonth()===month)) weeks.push(week);
-    if(d.getMonth()>month || d.getFullYear()>year) break;
+    for (let i = 0; i < 7; i++) {
+      week.push(new Date(startDate));
+      startDate.setDate(startDate.getDate() + 1);
+    }
+    if (week.some(x => x.getMonth() === month && x.getFullYear() === year)) {
+      weeks.push(week);
+    }
+    const lastDay = week[6];
+    if (lastDay.getFullYear() > year || (lastDay.getFullYear() === year && lastDay.getMonth() > month)) break;
   }
   return weeks;
 }
@@ -377,10 +399,19 @@ function renderWeek(container, week, wi) {
   themeCorner.innerHTML = '<span class="theme-corner-label">Theme</span>';
   grid.appendChild(themeCorner);
 
-  THEMES.forEach((theme) => {
+  week.forEach((d, di) => {
     const cell = document.createElement('div');
     cell.className = 'theme-cell';
-    cell.innerHTML = `<span class="theme-text">${theme}</span>`;
+    const val = loadTheme(currentYear, currentMonth, wi, di);
+    const ta = document.createElement('textarea');
+    ta.className = 'theme-input';
+    ta.value = val;
+    ta.placeholder = 'Theme...';
+    ta.addEventListener('input', () => {
+      saveTheme(currentYear, currentMonth, wi, di, ta.value);
+      autoH(ta);
+    });
+    cell.appendChild(ta);
     grid.appendChild(cell);
   });
 
@@ -475,6 +506,9 @@ function clearWeek() {
       week.forEach((d,di) => {
         try { localStorage.removeItem(saveKey(currentYear,currentMonth,wi,di,p.key)); } catch(e){}
       });
+    });
+    week.forEach((d,di) => {
+      try { localStorage.removeItem(themeKey(currentYear,currentMonth,wi,di)); } catch(e){}
     });
     try { localStorage.removeItem(eventKey(currentYear,currentMonth,wi)); } catch(e){}
   });
